@@ -1,4 +1,3 @@
-$ cat rmr
 #!/bin/bash
 # init
 
@@ -24,13 +23,14 @@ if [[ -d "$1" ]]
 	rmdir "$1"
 	printf "Removing %s... \n\n$ ls %s/ \n\n" "$1" "$1"
 #	ls -alF "$1"
-	if [ ! -e "$1" ]; then printf "\nDone!"; else printf "\n"$1" is still present check ownership and permissions:\n"; ls -lgad --color=always "$1" ; fi
+	if [ ! -e "$1" ]; then printf "\nDone!"; else printf "\n"$1" is still present check ownership and permissions:\n"; ls -glad --color=always "$1" ; fi
    else
 	printf "%s\n" "$bold"
 	find "$1"
 	printf "\n"
 	rm -rI "$1"
 	printf "%s" "$normal"
+	if [ ! -e "$1" ]; then printf "\nDone!"; else printf "\n"$1" is still present check ownership and permissions:\n"; ls -glad --color=always "$1" ; fi
    fi
 
 elif [[ -f "$1" ]]
