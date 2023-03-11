@@ -1,12 +1,12 @@
-#!/bin/bash
-bold=$(tput bold)
+$ cat rmr
 #!/bin/bash
 # init
 
+bold=$(tput bold)
+normal=$(tput sgr0)
 scriptname="$(realpath $0)"
 
 function editscript(){
-echo "scriptname: $scriptname"
 if [[ "$1" == "edit" ]]; then
  (/usr/bin/nano "$scriptname")
  exit
@@ -15,32 +15,28 @@ fi
 
 editscript "$1"
 
-normal=$(tput sgr0)
 
 if [[ -d "$1" ]]
  then
-	echo $bold
+   if [ ! -e "$1"/* ]
+    then
+	printf "%s" "$bold"
 	rmdir "$1"
-
-#	tput bold
-#	echo
-	echo $bold
-	echo "Directory of $1:"
-	ls -alF "$1"
-	echo
-#	$normal
+	printf "Removing %s... \n\n$ ls %s/ \n\n" "$1" "$1"
+#	ls -alF "$1"
+	if [ ! -e "$1" ]; then printf "\nDone!"; else printf "\n"$1" is still present check ownership and permissions:\n"; ls -lgad --color=always "$1" ; fi
+   else
+	printf "%s\n" "$bold"
 	find "$1"
-	echo
-#elif [[ -d "$1" ]]
-# then
+	printf "\n"
 	rm -rI "$1"
-	echo $normal
+	printf "%s" "$normal"
+   fi
+
 elif [[ -f "$1" ]]
  then
-	echo
-	printf "\"$1\""" is a file:  "$bold
+	printf "%s\n%s is a file:\n" "$bold" "$1"
 	ls -ltr "$1"
-	echo $normal
 #	echo "Do you wish to delete the file?"
 #	select yn in "Yes" "No"; do
 #		case $yn in
@@ -50,15 +46,14 @@ elif [[ -f "$1" ]]
 #	done
 
 
-	printf 'rmr: remove this file? (y/n) '
+	printf '\nrmr: remove this file? (y/n) '
+	printf "%s" "$normal"
 	old_stty_cfg=$(stty -g)
 	stty raw -echo ; answer=$(head -c 1) ; stty "$old_stty_cfg" # Careful playing with stty
 	if [ "$answer" != "${answer#[Yy]}" ];then
-    		rm "$1"; printf "\n\n"; ls -ltr "$1";
+    		rm "$1"; printf "\n\n"; if [ ! -e "$1" ]; then printf "\nDone! File \"%s\" removed.\n\n" "$1"; else printf "\n\n%s%s not removed, check permissions:\n\n" "$bold" "$1"; ls -ltr "$1"; fi
 	else
     		printf "\n\n%s \n" "$(ls -ltr "$1")";
 	fi
 
 fi
-
-printf "\n\n"
