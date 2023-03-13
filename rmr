@@ -29,15 +29,16 @@ if [[ -d "$1" ]]
 	if [ ! -e "$1" ]; then printf "\nDone!\n"; else printf "\n%s is still present check ownership and permissions:\n" "$1"; ls -glad --color=always "$1" ; fi
    fi
 
+#################################################################################################################################################################
+#This does not work because -e in ` if [ -e ... ] ` does not work with globs:  https://www.shellcheck.net/wiki/SC2144
+#
 #if [[ -d "$1" ]]
 # then
 #   if [ ! -e "$1"/* ]
 #    then
-#	printf "%s" "$bold"
-#	rmdir "$1"
-#	printf "Removing %s... \n\n$ ls %s/ \n\n" "$1" "$1"
-##	ls -alF "$1"
-#	if [ ! -e "$1" ]; then printf "\nDone!\n"; else printf "\n"$1" is still present check ownership and permissions:\n"; ls -glad --color=always "$1" ; fi
+#	.
+#	.
+#	.
 #   else
 #	printf "%s\n" "$bold"
 #	find "$1"
