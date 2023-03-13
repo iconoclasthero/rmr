@@ -63,7 +63,11 @@ elif [[ -f "$1" ]]
     		printf "\n\n%s \n" "$(ls -ltr %s)" "$1";
 	fi
 
-
+#########################################################################################################################################################
+#	There isn't really anything wrong with this code, but the above method removes the CR
+# 	There're other ways to do this https://stackoverflow.com/questions/226703/how-do-i-prompt-for-yes-no-cancel-input-in-a-linux-shell-script
+#
+#
 #	echo "Do you wish to delete the file?"
 #	select yn in "Yes" "No"; do
 #		case $yn in
