@@ -8,9 +8,13 @@ bold=$(tput bold)
 normal=$(tput sgr0)
 scriptname=$(realpath "$0")
 
-function editscript(){ if [ "$1" = "edit" ] || [ "$1" = "nano" ]; then /usr/bin/nano -i "$scriptname"; exit; fi; }
+editscript(){
+  local scriptname script path swp; scriptname=$(realpath "$0" 2>/dev/null); script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
+     [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
+     printf "\n%s is already being edited.\n%s exists; try fg or look in another window.\n" "$scriptname" "$swp"; exit ;}
 
-function fn_rmfile(){
+
+fn_rmfile(){
     printf "%s\n%s is a file:\n" "$bold" "$1"
     ls -ltr "$1"
     printf '\nrmr: remove this file? (y/n) '
@@ -33,7 +37,7 @@ function fn_rmfile(){
 }
 
 
-editscript "$1"
+[[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
 
 for path in "$@"
   do
