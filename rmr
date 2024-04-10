@@ -52,7 +52,7 @@ for path in "$@"
       	   printf "\nDone!\n"
       	else
       	   printf "\n\n%sRemoval Failed!%s\n\n%s is still present check ownership and permissions:\n" "$bold" "$normal" "$path"
-      	   ls -glad --color=always "$path"
+      	   ls -lad --color=always "$path"
 	fi
 
 
@@ -78,6 +78,10 @@ for path in "$@"
 
   elif [[ -f "$path" ]]; then
     fn_rmfile "$path"
+
+  else
+    printf "\n\n No such directory or file found!\n\n"
+
   fi
 
 done
