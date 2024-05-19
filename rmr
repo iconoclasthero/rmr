@@ -63,9 +63,9 @@ checkwrite(){
   if [[ "$multiple"=true ]]; then
     for i in "${cliargs[@]}"; do 
       if [[ ! -w "$i" ]]; then
-        read -rp "Unwriteable files; elevate to sudo?" confirm
+        read -rp "Unwriteable files; elevate to sudo? (Y/n) " confirm
         case "${confirm:-y}" in
-        Y* | y*) SUDO=sudo -v ;;
+        Y* | y*) SUDO="sudo"; sudo -v ;;
 #        Y* | y*) while (( "$?" > 0 )); do sudo -v; done ;;
         *) exit 1 ;;
         esac
