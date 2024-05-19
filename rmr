@@ -10,6 +10,8 @@ tput0=$(tput sgr0)
 scriptname="$(realpath "$0")"
 red="$(tput setaf 9)"
 
+pause(){ read -p "$*" ; }
+
 editscript(){
   local scriptname script path swp; scriptname=$(realpath "$0" 2>/dev/null); script="${scriptname##*/}"; path="${scriptname%/*}"; swp="$path/.$script.swp"
      [[ ! -e "$swp" ]] && printf "\n\n%s\n\n" "$swp" && (/usr/bin/nano "$scriptname") && exit
@@ -26,7 +28,7 @@ fn_rmfile(){
 
     if [ "$answer" != "${answer#[Yy]}" ]
       then
-        rm "$1"
+        ${SUDO} rm "$1"
         printf '\n\n'
         if [ ! -e "$1" ]
           then
@@ -46,27 +48,84 @@ fn_rmfile(){
 }
 ##--> fn_rmfile() <--#################################################################################
 
+remotefn() {
+[[ "$(uname -n)" != "$servername" ]] && REMOTE="ssh -p $sshport $server"
+#printf '\nssh server name: %s\nssh server port: %s\n        ssh url: %s\n  REMOTE PREFIX: %s\n\n\n' "$servername"
+"$sshport" "$server" "$REMOTE"
+}
+
+
+
+checkwrite(){
+  readarray -t cliargs <<< "${@:1}"
+  [[ -e "${cliargs[@]}" ]] && multiple=false
+  [[ -e "${cliargs[0]}" ]] && [[ -e "${cliargs[1]}" ]] && multiple=true
+  if [[ "$multiple"=true ]]; then
+    for i in "${cliargs[@]}"; do 
+      if [[ ! -w "$i" ]]; then
+        read -rp "Unwriteable files; elevate to sudo?" confirm
+        case "${confirm:-y}" in
+        Y* | y*) SUDO=sudo -v ;;
+#        Y* | y*) while (( "$?" > 0 )); do sudo -v; done ;;
+        *) exit 1 ;;
+        esac
+      fi
+    done
+  fi
+
+}
+
+
+
+##--> fn_rmfile() <--#################################################################################
+
+
 [[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
+
+checkwrite "$@"
 
 for path in "$@"
   do
-    if [[ -d "$path" ]]; then
-	printf '%s\n' "$bold"
-	if rmdir "$path" 2>/dev/null; then
-	   printf 'Removing %s... \n\n$ ls %s/ \n\n' "$path" "$path"
-	else
-	   find "$path"
-	   printf '\n'
-	   rm -rI "$path"
-       	   printf '%s' "$tput0"
-	fi
+    if [[ -d "$path" ]]
+      then
 
-	if [ ! -e "$path" ]; then
+	    printf '%s\n' "$bold"
+	    if ${SUDO} rmdir "$path" 2>/dev/null; then
+	        printf 'Removing empty directory %s... \n\n$ ls %s/ \n%s\n' "$(readlink -f "$path")" "$path" "$(ls "$path" 2>/dev/null)"
+	    else
+	        printf '\nRemoving %s... \n\n$ find "%s" \n%s\n' "$(readlink -f "$path")" "$path" "$(find "$path" 2>/dev/null)"
+	        ${SUDO} rm -rI "$path"
+       	  printf '%s' "$tput0"
+    	fi
+
+  	 if [ ! -e "$path" ]; then
       	   printf '\nDone!\n'
-      	else
+      else
       	   printf '\n\n%sRemoval Failed!%s\n\n%s is still present check ownership and permissions:\n' "$bold" "$tput0" "$path"
       	   ls -lad --color=always "$path"
-	fi
+	   fi
+
+    elif [[ -f "$path" ]]; then
+      fn_rmfile "$path"
+
+    else
+       printf '\n\n No such directory or file found!\n\n'
+
+    fi
+
+  done
+
+
+
+
+
+
+
+exit
+
+
+
+
 
 
 #
@@ -89,12 +148,4 @@ for path in "$@"
 #   fi
 
 
-  elif [[ -f "$path" ]]; then
-    fn_rmfile "$path"
 
-  else
-    printf '\n\n No such directory or file found!\n\n'
-
-  fi
-
-done
