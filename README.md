@@ -9,3 +9,7 @@ Put this utility somewhere in your path, e.g., locally you can use ~/bin or if y
 Sun May 19 01:59:56 PM EDT 2024
 
 It now checks to see if at least some of the files are not writeable and escallates to sudo...the check for unwritaablity will probably need to be reviewed/refined, but there you go, at least there's something.
+
+Mon May 20 06:19:09 AM EDT 2024
+
+ChatGPT wrote it in c and, after a couple iterations, it compiled without error.  I assume it's broadly *nix compatable, not sure I trust something designed to delete stuff that was written by AI and not checked by anyone who knows any c.
