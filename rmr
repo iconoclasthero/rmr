@@ -59,19 +59,34 @@ remotefn() {
 checkwrite(){
   readarray -t cliargs <<< "${@:1}"
   [[ -e "${cliargs[@]}" ]] && multiple=false
-  [[ -e "${cliargs[0]}" ]] && [[ -e "${cliargs[1]}" ]] && multiple=true
-  if [[ "$multiple"=true ]]; then
-    for i in "${cliargs[@]}"; do 
-      if [[ ! -w "$i" ]]; then
-        read -rp "Unwriteable files; elevate to sudo? (Y/n) " confirm
-        case "${confirm:-y}" in
+
+  [[ -e "${cliargs[0]}" ]] && [[ -e "${cliargs[1]}" ]] && multiple=true &&
+    if [[ "$multiple"=true ]]; then
+      for i in "${cliargs[@]}"; do
+        if [[ ! -w "$i" ]]; then
+          read -rp "Unwriteable files; elevate to sudo? (Y/n) " confirm
+          case "${confirm:-y}" in
+          Y* | y*) SUDO="sudo"; sudo -v ;;
+#          Y* | y*) while (( "$?" > 0 )); do sudo -v; done ;;
+          *) exit 1 ;;
+          esac
+        fi
+        if [[ "$i" = *\/* ]]; then
+          echo "is a dir"
+          exit
+        fi
+      done
+  elif [[ "$multiple"=flase ]]; then
+    if [[ ! -w "${cliargs[@]}" ]]; then
+      read -rp "Unwriteable files; elevate to sudo? (Y/n) " confirm
+      case "${confirm:-y}" in
         Y* | y*) SUDO="sudo"; sudo -v ;;
-#        Y* | y*) while (( "$?" > 0 )); do sudo -v; done ;;
+#       Y* | y*) while (( "$?" > 0 )); do sudo -v; done ;;
         *) exit 1 ;;
-        esac
-      fi
-    done
+      esac
+    fi
   fi
+  
 
 }
 
