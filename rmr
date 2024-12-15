@@ -20,14 +20,16 @@ editscript(){
 fn_rmfile(){
     printf '%s\n%s is a file:\n' "$bold" "$1"
     ls -ltr "$1"
-    printf '\nrmr: remove this file? (y/n) %s' "$tput0"
-    old_stty_cfg=$(stty -g)	# https://stackoverflow.com/questions/226703/how-do-i-prompt-for-yes-no-cancel-input-in-a-linux-shell-script
-    stty raw -echo
-    answer=$(head -c 1)
-    stty "$old_stty_cfg" 	# Careful playing with stty
+    if "$force"; then
+      answer=y
+    else
+      printf '\nrmr: remove this file? (y/n) %s' "$tput0"
+      old_stty_cfg=$(stty -g)	# https://stackoverflow.com/questions/226703/how-do-i-prompt-for-yes-no-cancel-input-in-a-linux-shell-script
+      stty raw -echo
+      answer=$(head -c 1)
+      stty "$old_stty_cfg" 	# Careful playing with stty
 
-    if [ "$answer" != "${answer#[Yy]}" ]
-      then
+      if [ "$answer" != "${answer#[Yy]}" ]; then
         ${SUDO} rm "$1"
         printf '\n\n'
         if [ ! -e "$1" ]
@@ -39,6 +41,7 @@ fn_rmfile(){
         fi
       else
         printf '\n\n%sFiles remain:\n%s \n%s\n' "$red" "$(ls -ltr "$1")" "$tput0"
+      fi
     fi
 
 ######################################################################################################
@@ -94,6 +97,15 @@ checkwrite(){
 
 ##--> fn_rmfile() <--#################################################################################
 
+force=false  # Flag for -y/--force option
+
+# Check for -y or --force argument
+for arg in "$@"; do
+  case $arg in
+    -y|--force) force=true; shift ;;
+    *) ;;
+  esac
+done
 
 [[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
 
@@ -109,7 +121,12 @@ for path in "$@"
 	        printf 'Removing empty directory %s... \n\n$ ls %s/ \n%s\n' "$(readlink -f "$path")" "$path" "$(ls "$path" 2>/dev/null)"
 	    else
 	        printf '\nRemoving %s... \n\n$ find "%s" \n%s\n' "$(readlink -f "$path")" "$path" "$(find "$path" 2>/dev/null)"
-	        ${SUDO} rm -rI "$path"
+            if "$force"; then
+	          ${SUDO} rm -fr "$path"
+            else
+	          ${SUDO} rm -rI "$path"
+            fi
+
        	  printf '%s' "$tput0"
     	fi
 
