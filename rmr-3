@@ -3,42 +3,111 @@
 #trap read debug
 # Last modified:  Mon Mar 20 11:30:42 PM EDT 2023
 # Last modified: Sun Apr 28 08:35:20 AM EDT 2024
-# Last modified: Fri Jun  6 09:16:17 AM EDT 2025
+# Last modified: Tue Jul  1 07:37:05 AM EDT 2025
 # version 0.03
 
 bold=$(tput bold)
 tput0=$(tput sgr0)
 scriptname="$(realpath "$0")"
 red="$(tput setaf 9)"
+yellow="$(tput setaf 11)"
+#(( EUID )) && SUDO=sudo
 
 . /usr/local/bin/editscript
 
-fn_rmfile(){
-    printf '%s\n%s is a file:\n' "$bold" "$1"
-    ls -ltr "$1"
-    if "$force"; then
-      answer=y
-    else
-      printf '\nrmr: remove this file? (y/n) %s' "$tput0"
-      old_stty_cfg=$(stty -g)	# https://stackoverflow.com/questions/226703/how-do-i-prompt-for-yes-no-cancel-input-in-a-linux-shell-script
-      stty raw -echo
-      answer=$(head -c 1)
-      stty "$old_stty_cfg" 	# Careful playing with stty
+! (( EUID )) && { printf '%s[%sWARN%s] %s is running as root!\n\n' "$bold" "$yellow" "$tput0" "$0";
+  read -rp "${red}Press any key to continue or ^C to abort. $tput0"; }
 
-      if [ "$answer" != "${answer#[Yy]}" ]; then
-        ${SUDO} rm "$1"
-        printf '\n\n'
-        if [ ! -e "$1" ]
-          then
-            printf '\nDone! File \"%s\" removed.\n\n' "$1"
-          else
-            printf '\n\n%s%s not removed, check permissions:\n\n' "$bold" "$1"
-            ls -ltr "$1"
-        fi
-      else
-        printf '\n\n%sFiles remain:\n%s \n%s\n' "$red" "$(ls -ltr "$1")" "$tput0"
-      fi
+#fn_rmfile(){
+#  printf '%s\n%s is a file:\n' "$bold" "$1"
+#  ls -ltr "$1"
+#
+#  (( force )) && answer=y
+#  if ! (( force )); then
+#    printf '\nrmr: remove this file? (y/n) %s' "$tput0"
+#    old_stty_cfg=$(stty -g)
+#    stty raw -echo
+#    answer=$(head -c 1)
+#    stty "$old_stty_cfg" 	# Careful playing with stty
+#
+# #   if [[ "$answer" != "${answer#[Yy]}" ]]; then
+#    if [[ "$answer" = [Yy] ]]; then
+#      rm "$1"
+#      printf '\n\n'
+#      if [[ ! -e "$1" ]]; then
+#        printf '\nDone! File \"%s\" removed.\n\n' "$1"
+#      else
+#        printf '\n\n%s%s not removed, check permissions:\n\n' "$bold" "$1"
+#        ls -ltr "$1"
+#      fi
+#    else
+#      printf '\n\n%sFiles remain:\n%s \n%s\n' "$red" "$(ls -ltr "$1")" "$tput0"
+#    fi
+#  elif (( force )); then
+#    sudo rm "$1"
+#  fi
+
+
+
+
+: "${SUDO:=}"  # ensure it's defined, empty if unset
+
+fn_rmfile() {
+  printf '%s\n%s is a file:\n' "$bold" "$1"
+  ls -ltr "$1"
+
+  (( force )) && answer=y
+
+  if (( ! force )); then
+    printf '\nrmr: remove this file? (y/n) %s' "$tput0"
+    old_stty_cfg=$(stty -g)
+    stty raw -echo
+    answer=$(head -c 1)
+    stty "$old_stty_cfg"
+    printf '\n'
+
+    if [[ "$answer" = [Yy] ]]; then
+      $SUDO rm -i "$1"
+    else
+      printf '\n%sSkipped by user.%s\n' "$red" "$tput0"
+      return 1
     fi
+  else
+    sudo rm -f "$1"
+  fi
+
+  if [[ ! -e "$1" ]]; then
+    printf '\nDone! File \"%s\" removed.\n\n' "$1"
+  else
+    printf '\n\n%sRemoval Failed!%s\n\n%s is still present; checking ownership and permissions:\n\n' \
+      "$bold" "$tput0" "$1"
+    ls -lad --color=always "$1"
+
+    if [[ ! -w "$1" || ! -w "$(dirname "$1")" || ! -x "$(dirname "$1")" ]]; then
+      if [[ ! "$SUDO" ]]; then
+        read -rp $'\nLooks like a permissions issue. Retry with sudo? (Y/n) ' confirm
+        case "${confirm:-y}" in
+          [Yy]*)
+            SUDO=sudo
+            sudo -vp "Fallback sudo prompt: " || { echo "Failed to gain sudo access."; return 1; }
+            ;;
+          *) echo "Skipped retry."; return 1 ;;
+        esac
+      fi
+
+      echo -e "\nRetrying with sudo..."
+      sudo rm -i "$1"
+
+      if [[ ! -e "$1" ]]; then
+        echo -e "\nDone!"
+      else
+        echo -e "\nStill failed after sudo. Please inspect manually:\n"
+        ls -lad --color=always "$1"
+      fi
+    else
+      echo -e "\nDoesn't appear to be a permission issue. Not retrying."
+    fi
+  fi
 
 ######################################################################################################
 #	There isn't really anything wrong with this code, but the above method removes the CR
@@ -52,128 +121,162 @@ remotefn() {
 #printf '\nssh server name: %s\nssh server port: %s\n        ssh url: %s\n  REMOTE PREFIX: %s\n\n\n' "$servername"
 "$sshport" "$server" "$REMOTE"
 }
-
-
+##--> remotefn() <--#################################################################################
 
 checkwrite(){
-  readarray -t cliargs <<< "${@:1}"
-  [[ -e "${cliargs[@]}" ]] && multiple=false
+  local i elevate parent
 
-  [[ -e "${cliargs[0]}" ]] && [[ -e "${cliargs[1]}" ]] && multiple=true &&
-    if [[ "$multiple"=true ]]; then
-      for i in "${cliargs[@]}"; do
-        if [[ ! -w "$i" ]]; then
-          read -rp "Unwriteable files; elevate to sudo? (Y/n) " confirm
-          case "${confirm:-y}" in
-          Y* | y*) SUDO="sudo"; sudo -v ;;
-#          Y* | y*) while (( "$?" > 0 )); do sudo -v; done ;;
-          *) exit 1 ;;
-          esac
-        fi
-        if [[ "$i" = *\/* ]]; then
-          echo "is a dir"
-          exit
-        fi
-      done
-  elif [[ "$multiple"=flase ]]; then
-    if [[ ! -w "${cliargs[@]}" ]]; then
-      read -rp "Unwriteable files; elevate to sudo? (Y/n) " confirm
-      case "${confirm:-y}" in
-        Y* | y*) SUDO="sudo"; sudo -v ;;
-#       Y* | y*) while (( "$?" > 0 )); do sudo -v; done ;;
-        *) exit 1 ;;
-      esac
-    fi
-  fi
-  
+  (( verbose )) && printf 'Entered %s.\n$SUDO=%s\n' "${FUNCNAME[0]}" "$SUDO"
 
-}
-
-
-
-##--> fn_rmfile() <--#################################################################################
-
-force=false  # Flag for -y/--force option
-
-# Check for -y or --force argument
-for arg in "$@"; do
-  case $arg in
-    -y|--force) force=true; shift ;;
-    *) ;;
-  esac
-done
-
-[[ "$1" == @(edit|e|nano|-e|-E) ]] && editscript
-
-checkwrite "$@"
-
-for path in "$@"
-  do
-    if [[ -d "$path" ]]
-      then
-
-	    printf '%s\n' "$bold"
-	    if ${SUDO} rmdir "$path" 2>/dev/null; then
-	        printf 'Removing empty directory %s... \n\n$ ls %s \n%s\n' "$(readlink -f "$path")" "$path" "$(ls "$path" 2>/dev/null)"
-	    else
-	        printf '\nRemoving %s... \n\n$ find "%s" \n%s\n' "$(readlink -f "$path")" "$path" "$(find "$path" 2>/dev/null)"
-            if "$force"; then
-	          ${SUDO} rm -fr "$path"
-            else
-	          ${SUDO} rm -rI "$path"
-            fi
-
-       	  printf '%s' "$tput0"
-    	fi
-
-  	 if [ ! -e "$path" ]; then
-      	   printf '\nDone!\n'
-      else
-      	   printf '\n\n%sRemoval Failed!%s\n\n%s is still present check ownership and permissions:\n' "$bold" "$tput0" "$path"
-      	   ls -lad --color=always "$path"
-	   fi
-
-    elif [[ -f "$path" ]]; then
-      fn_rmfile "$path"
-
-    else
-       printf '\n\n No such directory or file found!\n\n'
-
-    fi
-
+  while (( $# )); do
+    parent=$(dirname "$1")
+    [[ -e "$1" ]] && [[ ! -w "$1" || ! -w "$parent" || ! -x "$parent" ]] && { elevate=1;
+    printf '%s not writeable.\n' "$1"; }
+    shift
+    (( elevate )) && break
   done
 
+  (( verbose )) && read -rp "elevate=$elevate"
+
+  if (( elevate )) && (( EUID )); then
+    read -rp "Some paths are not writable. Elevate to sudo? (Y/n) " confirm
+    case "${confirm:-y}" in
+      [Yy]*) SUDO="sudo"; sudo -vp "Checkwrite sudo prompt: " ;;
+      *) exit 130 ;;
+    esac
+  fi
+
+  (( verbose )) && printf 'elevate=%s\n' "$elevate"
+  (( verbose )) && read -rp "\$SUDO=$SUDO"
+
+}
+##3. Style: Use "$@" consistently
+## Your checkwrite function uses $1 and shift, which works, but for i in "$@" is more readable and typical.
+##--> checkwrite() <--#################################################################################
+
+
+## eventually, this will need to be coverted over to this so that the sudo's handled properly:
+## cmd=()
+## [[ "$SUDO" ]] && cmd+=(sudo)
+## cmd+=(rm)
+## [[ "$force" ]] && cmd+=(-f) || cmd+=(-rI)
+## cmd+=("$path")
+##
+## "${cmd[@]}"
+
+# Check for -y or --force argument
+while (( $# )); do
+  (( verbose )) && printf '$1=%s\n' "$1"
+  (( verbose )) && printf '$SUDO=%s\n' "$SUDO"
+  case "$1" in
+    -E|--empty) empty=1; shift ;;
+    -y|--force) force=1; shift ;;
+    -s|--sudo) SUDO="sudo"; sudo -vp "Enter sudo password for elevated permissions: "; shift ;;
+    *) if [[ -e "$1" ]]; then paths+=( "$1" )
+       else printf '%s does not exist, ignoring.\n' "$1"
+       fi
+       shift ;;
+  esac
+  (( verbose )) && printf '$SUDO=%s\n' "$SUDO"
+  (( verbose )) && printf '$force=%s\n' "$force"
+done
+
+(( verbose )) && printf 'After cli argument handling.\n'
+
+(( empty )) && printf 'Attempting to remove only empty directories not requiring elevated permissions.\n\n'
+
+(( ${#paths[@]} )) || { printf 'Nothing to do, exiting (exit 1).\n'; exit 1; }
+
+checkwrite "${paths[@]}"
+
+(( verbose )) && read -rp "after checkwrite"
+
+for path in "${paths[@]}"; do
+  if [[ "$path" = '.' ]]; then
+    path="$(realpath .)"
+    cd ..
+    read -rp "rmr . will remove $path.  Any key to continue, ^C to abort."
+  fi
+
+  if [[ -d "$path" ]]; then
+    (( verbose )) && printf 'Entered [[ -d "$path" ]]\n'
+    printf '%s\n' "$bold"
+    (( verbose )) && printf '$SUDO = %s\n' "$SUDO"
+    (( verbose )) && read -rp "before first rmdir"
+    if ${SUDO} rmdir "$path" 2>/dev/null; then
+      printf 'Removing empty directory %s... \n\n$ ls %s \n%s\n' "$(readlink -f "$path")" "$path" "$(ls "$path" 2>/dev/null)"
+    elif ! (( empty )); then
+      printf '\nRemoving %s... \n\n$ find "%s" \n%s\n' "$(readlink -f "$path")" "$path" "$(find "$path" 2>/dev/null)"
+      if (( force )); then
+        ${SUDO} rm -fr "$path"
+      else
+        ${SUDO} rm -rI "$path"
+      fi
+   	  printf '%s' "$tput0"
+    fi
+
+#    if [ ! -e "$path" ]; then
+#      printf '\nDone!\n'
+#    else
+#      printf '\n\n%sRemoval Failed!%s\n\n%s is still present check ownership and permissions:\n' "$bold" "$tput0" "$path"
+#      ls -lad --color=always "$path"
+#	fi
 
 
 
+    if [[ ! -e "$path" ]]; then
+      printf '\nDone!\n'
+    elif ! (( empty )); then
+      printf '\n\n%sRemoval Failed!%s\n\n%s is still present; checking ownership and permissions:\n\n' \
+        "$bold" "$tput0" "$path"
+      ls -lad --color=always "$path"
 
+      # Attempt to detect if it's a permissions problem
+      if [[ ! -w "$path" || ! -w "$(dirname "$path")" || ! -x "$(dirname "$path")" ]]; then
+        if [[ -z "$SUDO" ]]; then
+          read -rp $'\nLooks like a permissions issue. Retry with sudo? (Y/n) ' confirm
+          case "${confirm:-y}" in
+            [Yy]*)
+              SUDO=sudo
+              sudo -vp "Fallback sudo prompt: " || { echo "Failed to gain sudo access."; exit 1; }
+              ;;
+            *) echo "Skipped retry."; return 1 ;;
+          esac
+        fi
 
+        # Retry removal with sudo
+        echo -e "\nRetrying with sudo..."
+        if [[ -d "$path" ]]; then
+          if (( force )); then
+            "${SUDO}" rm -fr "$path"
+          else
+            "${SUDO}" rm -rI "$path"
+          fi
+        else
+          "${SUDO}" rm -i "$path"
+        fi
+
+        if [[ ! -e "$path" ]]; then
+          echo -e "\nDone!"
+        else
+          echo -e "\nStill failed after sudo. Please inspect manually:\n"
+          ls -lad --color=always "$path"
+        fi
+      else
+        echo -e "\nDoesn't appear to be a permission issue. Not retrying."
+      fi
+    fi
+
+  elif [[ -f "$path" ]] && ! (( empty )); then
+    fn_rmfile "$path"
+  else
+    printf '\n\n No such directory or file found!\n\n'
+  fi
+done
+
+[[ "$SUDO" ]] && sudo -k
 
 exit
-
-
-
-
-
-
-#
-# this does not work because -e in  if [ -e ... ]  does not work with globs:  https://www.shellcheck.net/wiki/SC2144
-#
-#if [[ -d "$1" ]]
-# then
-#   if [ ! -e "$1"/* ]
-#    then
-#	.
-#	.
-#	.
-#   else
-#	printf "%s\n" "$bold"
-#	find "$1"
-#	printf "\n"
-#	rm -rI "$1"
-#	printf "%s" "$tput0"
-#	if [ ! -e "$1" ]; then printf "\nDone!\n"; else printf "\n"$1" is still present check ownership and permissions:\n"; ls -glad --color=always "$1" ; fi
-#   fi
 
 
 
