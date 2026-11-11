@@ -211,6 +211,7 @@ for path in "${paths[@]}"; do
         ${SUDO} rm -fr "$path"
       else
         ${SUDO} rm -rI "$path"
+        ec="$?"
       fi
    	  printf '%s' "$tput0"
     fi
@@ -226,6 +227,7 @@ for path in "${paths[@]}"; do
 
     if [[ ! -e "$path" ]]; then
       printf '\nDone!\n'
+      ec='0'
     elif ! (( empty )); then
       printf '\n\n%sRemoval Failed!%s\n\n%s is still present; checking ownership and permissions:\n\n' \
         "$bold" "$tput0" "$path"
@@ -274,7 +276,7 @@ for path in "${paths[@]}"; do
   fi
 done
 
-[[ "$SUDO" ]] && sudo -k
+[[ "$SUDO" ]] && sudo -k || true
 
 exit
 
